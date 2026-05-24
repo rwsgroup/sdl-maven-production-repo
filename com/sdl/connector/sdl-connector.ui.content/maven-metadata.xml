@@ -3,7 +3,7 @@
   <groupId>com.sdl.connector</groupId>
   <artifactId>sdl-connector.ui.content</artifactId>
   <versioning>
-    <release>1.9.20.1</release>
+    <release>1.9.20</release>
     <versions>
       <version>1.9.19</version>
       <version>1.9.25</version>
@@ -16,6 +16,6 @@
       <version>1.9.20</version>
       <version>1.9.20.1</version>
     </versions>
-    <lastUpdated>20260523073054</lastUpdated>
+    <lastUpdated>20260524065103</lastUpdated>
   </versioning>
 </metadata>
