@@ -1,0 +1,78 @@
+name: Sync raw files to mymavenrepo
+ 
+# Sync raw maven-layout files to https://mymavenrepo.com/repo/WBK602nHXl923AOY0Axk/
+on:
+  push:
+    branches:
+      - '**'
+  schedule:
+    # weekly at 00:00 UTC on Sunday
+    - cron: '0 0 * * 0'
+ 
+concurrency:
+  group: sync-mymavenrepo
+  cancel-in-progress: true
+ 
+jobs:
+  sync-files:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+ 
+      - name: Build artifacts if pom.xml present (optional)
+        run: |
+          if [ -f pom.xml ]; then
+            echo "pom.xml found — running mvn package (skip tests)"
+            mvn -B package -DskipTests
+          else
+            echo "No pom.xml found — skipping build"
+          fi
+ 
+      - name: Upload tracked repo files to mymavenrepo
+        env:
+          BASE_URL: "https://mymavenrepo.com/repo/WBK602nHXl923AOY0Axk"
+          MYMAVEN_USER: ${{ secrets.MYMAVEN_USERNAME }}
+          MYMAVEN_PASSWORD: ${{ secrets.MYMAVEN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          echo "Using base URL: $BASE_URL"
+ 
+          # Collect candidate paths. Adjust these path globs to match where your maven layout lives.
+          files=$(git ls-files 'maven/**' 'repository/**' || true)
+ 
+          # If none found, try uploading built artifacts from target/
+          if [ -z "$files" ]; then
+            echo "No files found under maven/ or repository/. Looking for built artifacts in target/ ..."
+            # Note: git ls-files won't list untracked build outputs; use a filesystem search for these.
+            files=$(find target -type f -name '*.jar' -o -name '*.pom' -o -name '*.war' -o -name '*.zip' || true)
+          fi
+ 
+          if [ -z "$files" ]; then
+            echo "No files to upload. Exiting."
+            exit 0
+          fi
+ 
+          # Upload each file, preserving its relative path under the repo root.
+          # The destination will be BASE_URL/<relative-path>
+          # If your server expects a different layout or additional path mapping, adjust dest accordingly.
+          echo "Uploading files..."
+          while IFS= read -r f; do
+            # Skip empty lines
+            [ -z "$f" ] && continue
+            # Normalize path (remove leading ./ if present)
+            rel="${f#./}"
+            dest="${BASE_URL%/}/$rel"
+            mkdir -p "$(dirname "$rel")" || true
+            echo " -> $rel -> $dest"
+            curl --fail-with-body --retry 3 --retry-delay 5 -u "$MYMAVEN_USER:$MYMAVEN_PASSWORD" \
+              -X PUT --upload-file "$rel" "$dest" \
+              -H "Content-Type: application/octet-stream"
+            echo "uploaded $rel"
+          done <<EOF
+$files
+EOF
+ 
+          echo "All uploads done."
