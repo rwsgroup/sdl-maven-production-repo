@@ -1,37 +1,55 @@
-- name: Upload artifacts to MyMavenRepo
-  env:
-    BASE_URL: https://mymavenrepo.com/repo/WBK602nHXl923AOY0Axk
-    MYMAVEN_USER: ${{ secrets.MYMAVEN_USERNAME }}
-    MYMAVEN_PASSWORD: ${{ secrets.MYMAVEN_PASSWORD }}
-  run: |
-    set -euo pipefail
+name: Sync changed artifacts to MyMavenRepo
 
-    if [ -z "${MYMAVEN_USER:-}" ] || [ -z "${MYMAVEN_PASSWORD:-}" ]; then
-      echo "Missing credentials."
-      exit 1
-    fi
+on:
+  push:
+    branches:
+      - main
 
-    echo "Finding repository files..."
+jobs:
+  sync:
+    runs-on: ubuntu-latest
 
-    find com -type f | sort > files.txt
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
-    echo "Found $(wc -l < files.txt) files"
+      - name: Upload changed artifacts
+        env:
+          BASE_URL: https://mymavenrepo.com/repo/WBK602nHXl923AOY0Axk
+          MYMAVEN_USER: ${{ secrets.MYMAVEN_USERNAME }}
+          MYMAVEN_PASSWORD: ${{ secrets.MYMAVEN_PASSWORD }}
+        run: |
+          set -euo pipefail
 
-    cat files.txt
+          if [ -z "${MYMAVEN_USER:-}" ] || [ -z "${MYMAVEN_PASSWORD:-}" ]; then
+            echo "Missing MYMAVEN_USERNAME or MYMAVEN_PASSWORD"
+            exit 1
+          fi
 
-    while IFS= read -r file; do
-      dest="${BASE_URL}/${file}"
+          echo "Finding changed files..."
 
-      echo ""
-      echo "Uploading $file"
+          git diff --name-only HEAD~1 HEAD > changed.txt
 
-      curl \
-        --fail \
-        --retry 3 \
-        -u "$MYMAVEN_USER:$MYMAVEN_PASSWORD" \
-        --upload-file "$file" \
-        "$dest"
+          cat changed.txt
 
-    done < files.txt
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
 
-    echo "Upload complete."
+            # Skip deleted files
+            [ ! -f "$file" ] && continue
+
+            echo "Uploading $file"
+
+            curl \
+              --fail \
+              --retry 3 \
+              --retry-delay 5 \
+              -u "$MYMAVEN_USER:$MYMAVEN_PASSWORD" \
+              --upload-file "$file" \
+              "${BASE_URL}/${file}"
+
+          done < changed.txt
+
+          echo "Done."
