@@ -30,7 +30,7 @@ jobs:
 
           echo "Finding changed files..."
 
-          git diff --name-only HEAD~1 HEAD > changed.txt
+          git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" -- com/ > changed.txt
 
           cat changed.txt
 
