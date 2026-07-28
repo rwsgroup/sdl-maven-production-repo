@@ -1,6 +1,6 @@
 name: Sync raw files to mymavenrepo
  
-# Sync raw maven-layout files to https://mymavenrepo.com/repo/WBK602nHXl923AOY0Axk/
+# Sync raw maven-layout files  to https://mymavenrepo.com/repo/WBK602nHXl923AOY0Axk/
 on:
   push:
     branches:
